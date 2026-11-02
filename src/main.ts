@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 import { ApiError, Client, normaliseBase, type Reply } from "./api.js";
-import { renderComponents, SCHEMA, type Component, type Handlers } from "./view.js";
+import { describe, runCommand, succeeded, type Outcome } from "./commands.js";
+import { renderForm, type FormEnv } from "./forms.js";
+import { renderComponents, SCHEMA, type Action, type Component, type Handlers } from "./view.js";
 
 const DEFAULT_BASE = "http://127.0.0.1:8484";
 
@@ -77,6 +79,8 @@ class Session {
   private current: string | null = null;
   private params: Record<string, unknown> = {};
   private stop = new AbortController();
+  private fields = new Map<string, string[]>();
+  private readonly result = el("p", { cls: "result", attrs: { role: "status" } });
   private readonly pane = el("section", { cls: "pane" });
 
   constructor(
@@ -95,7 +99,8 @@ class Session {
       b.addEventListener("click", () => void this.open(v.id, {}));
       nav.append(b);
     }
-    show(...header, nav, this.pane);
+    show(...header, nav, this.result, this.pane);
+    void this.loadCommands();
     void this.follow();
     const first = this.views.find((v) => v.schema <= SCHEMA);
     if (first) void this.open(first.id, {});
@@ -109,6 +114,7 @@ class Session {
   async open(id: string, params: Record<string, unknown>): Promise<void> {
     this.current = id;
     this.params = params;
+    this.note("");
     await this.refresh();
   }
 
@@ -134,13 +140,80 @@ class Session {
         for (const name of sel.clear ?? []) delete this.params[name];
         void this.refresh();
       },
-      run: (action) => this.notYet(action.label ?? action.command ?? "this"),
-      form: (form, into) => into.append(el("p", { cls: "muted", text: `${form.title ?? form.command}: forms follow in a later version of this page` })),
+      run: (action) => void this.act(action),
+      form: (form, into) => renderForm(into, form, this.formEnv()),
     };
   }
 
-  private notYet(what: string): void {
-    this.pane.prepend(el("p", { cls: "warning", text: `${what}: starting commands follows in a later version of this page` }));
+  private formEnv(): FormEnv {
+    return {
+      submit: async (command, values, leave) => {
+        try {
+          const outcome = await runCommand(this.client, command, values);
+          this.say(outcome);
+          if (!succeeded(outcome)) return describe(outcome).join("; ");
+          if (leave) await this.open(leave, {});
+          else await this.refresh();
+          return null;
+        } catch (e) {
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      fieldsOf: (command) => this.fields.get(command) ?? null,
+      suggest: async (lookup, text) => {
+        const r = await this.client.call({ op: "lookup", view: this.current ?? "", capability: lookup.capability, args: { [lookup.arg]: text } });
+        const items = (Array.isArray(r["items"]) ? r["items"] : []) as Record<string, unknown>[];
+        return items.flatMap((i) => {
+          const address = typeof i["address"] === "string" ? i["address"] : "";
+          const name = typeof i["name"] === "string" ? i["name"] : "";
+          return address ? [name ? `${name} <${address}>` : address] : [];
+        });
+      },
+    };
+  }
+
+  /** A button of a view: another view, a command (after the question it asks), or a download. */
+  private async act(action: Action): Promise<void> {
+    if (action.opens) {
+      if (action.opens.screen) {
+        this.note("This opens a screen of the desktop program, which this page does not have.");
+        return;
+      }
+      await this.open(action.opens.view, action.opens.params ?? {});
+      return;
+    }
+    if (action.download) {
+      this.note("Downloads are not offered over the web yet.");
+      return;
+    }
+    if (!action.command) return;
+    if (action.confirm && !window.confirm(action.confirm)) return;
+    try {
+      const outcome = await runCommand(this.client, action.command, action.args ?? {});
+      this.say(outcome);
+      await this.refresh();
+    } catch (e) {
+      this.note(e instanceof Error ? e.message : String(e), true);
+    }
+  }
+
+  private say(outcome: Outcome): void {
+    this.note(describe(outcome).join("\n"), !succeeded(outcome));
+  }
+
+  private note(message: string, failed = false): void {
+    this.result.textContent = message;
+    this.result.className = failed ? "result error" : "result";
+  }
+
+  private async loadCommands(): Promise<void> {
+    try {
+      const r = await this.client.call({ op: "commands" });
+      const list = (Array.isArray(r["commands"]) ? r["commands"] : []) as { id: string; params?: { name: string }[] }[];
+      this.fields = new Map(list.map((c) => [c.id, (c.params ?? []).map((p) => p.name)]));
+    } catch {
+      // without the list another button of a form sends all its fields
+    }
   }
 
   /** Asks what changed, in a loop, and draws the view again when something did. */
