@@ -10,3 +10,23 @@ input { display: block; width: 100%; box-sizing: border-box; padding: 0.5rem; fo
 button { padding: 0.5rem 1rem; font: inherit; }
 .error { color: var(--error); }
 .hint { color: var(--muted); }
+nav { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+.muted { color: var(--muted); }
+.warning { color: var(--error); }
+.row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-start; }
+.column { display: flex; flex-direction: column; gap: 0.5rem; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--muted); }
+.emphasis { font-weight: bold; }
+.clickable { cursor: pointer; }
+.clickable:focus { outline: 2px solid var(--accent); }
+ul.items { list-style: none; padding: 0; }
+ul.items li { padding: 0.4rem 0; border-bottom: 1px solid var(--muted); display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.subtitle { color: var(--muted); }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+dt { color: var(--muted); }
+dd { margin: 0; }
+.richtext img { max-width: 100%; }
+.code, pre { font-family: ui-monospace, monospace; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
