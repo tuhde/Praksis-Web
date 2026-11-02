@@ -1,0 +1,17 @@
+{
+  "name": "praksis-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser client for the Praksis daemon: a generic renderer, no logic of its own",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "test": "npm run build && tsc -p tsconfig.test.json && node --test dist-test/test/",
+    "serve": "npm run build && node scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.30",
+    "typescript": "5.9.3"
+  }
+}
